@@ -1,0 +1,21 @@
+# 의존 패키지
+node_modules/
+
+# Playwright 테스트 산출물
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Claude Code 로컬 설정
+.claude/settings.local.json
+
+# 로그
+*.log
+npm-debug.log*
+
+# OS / 에디터가 생성하는 파일
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

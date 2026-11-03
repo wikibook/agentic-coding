@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF 라벨 메이커</title>
+  <!-- jsPDF 라이브러리(CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <!-- 라벨 용지 프리셋 데이터(file://에서도 읽을 수 있도록 .js로 외부화) -->
+  <script src="labellist.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px 16px;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 24px;
+    }
+
+    fieldset {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    legend {
+      font-weight: bold;
+      font-size: 0.9rem;
+      padding: 0 4px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    select,
+    input[type="number"],
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    textarea {
+      height: 100px;
+      resize: vertical;
+      font-family: sans-serif;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .row .field {
+      flex: 1;
+    }
+
+    button {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #fff;
+      background: #333;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #555;
+    }
+
+    /* 필터링 기능이 있는 드롭다운 */
+    .preset-wrapper {
+      position: relative;
+    }
+
+    .preset-list {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      max-height: 240px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      background: #fff;
+      z-index: 10;
+      list-style: none;
+    }
+
+    .preset-list.open {
+      display: block;
+    }
+
+    .preset-list li {
+      padding: 6px 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .preset-list li:hover,
+    .preset-list li.active {
+      background: #eee;
+    }
+
+    .preset-list li .sub {
+      color: #888;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>PDF 라벨 메이커</h1>
+
+  <!-- 용지 프리셋 -->
+  <fieldset>
+    <legend>용지 프리셋</legend>
+    <div class="field">
+      <label for="presetSearch">라벨 용지(제조사명·품번·면수로 필터링)</label>
+      <div class="preset-wrapper">
+        <input type="text" id="presetSearch" placeholder="예: 에이원 24면" autocomplete="off">
+        <ul class="preset-list" id="presetList"></ul>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 라벨에 인쇄할 텍스트 -->
+  <fieldset>
+    <legend>텍스트</legend>
+    <div class="field">
+      <label for="labelText">라벨에 인쇄할 내용</label>
+      <textarea id="labelText" placeholder="여기에 텍스트를 입력"></textarea>
+    </div>
+    <div class="field">
+      <label for="fontSize">폰트 크기 (pt)</label>
+      <input type="number" id="fontSize" value="10" min="1" step="0.5">
+    </div>
+  </fieldset>
+
+  <!-- 용지 여백 -->
+  <fieldset>
+    <legend>용지 여백 (mm)</legend>
+    <div class="row">
+      <div class="field">
+        <label for="marginTop">위</label>
+        <input type="number" id="marginTop" value="10" min="0" step="0.5">
+      </div>
+      <div class="field">
+        <label for="marginBottom">아래</label>
+        <input type="number" id="marginBottom" value="10" min="0" step="0.5">
+      </div>
+      <div class="field">
+        <label for="marginLeft">왼쪽</label>
+        <input type="number" id="marginLeft" value="10" min="0" step="0.5">
+      </div>
+      <div class="field">
+        <label for="marginRight">오른쪽</label>
+        <input type="number" id="marginRight" value="10" min="0" step="0.5">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 라벨 설정 -->
+  <fieldset>
+    <legend>라벨 설정 (mm)</legend>
+    <div class="row">
+      <div class="field">
+        <label for="labelWidth">라벨 너비</label>
+        <input type="number" id="labelWidth" value="70" min="1" step="0.5">
+      </div>
+      <div class="field">
+        <label for="labelHeight">라벨 높이</label>
+        <input type="number" id="labelHeight" value="37" min="1" step="0.5">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="labelGapX">라벨 사이 여백(가로)</label>
+        <input type="number" id="labelGapX" value="2" min="0" step="0.5">
+      </div>
+      <div class="field">
+        <label for="labelGapY">라벨 사이 여백(세로)</label>
+        <input type="number" id="labelGapY" value="2" min="0" step="0.5">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- PDF 생성 버튼 -->
+  <button type="button" id="generateBtn">PDF 만들기</button>
+
+  <script>
+    // labelList는 labellist.js에 정의되어 있다(const labelList = [...])
+
+    // 프리셋 항목의 표시 텍스트를 생성한다
+    function presetLabel(item) {
+      return item.manufacturer + ' ' + item.productNumber + ' ' + item.name
+        + ' (' + item.labelWidth + '×' + item.labelHeight + 'mm)';
+    }
+
+    // 프리셋 목록을 그린다
+    function renderPresetList(query) {
+      var listEl = document.getElementById('presetList');
+      listEl.innerHTML = '';
+      var q = query.toLowerCase();
+      var filtered = labelList.filter(function (item) {
+        if (!q) return true;
+        var text = presetLabel(item).toLowerCase();
+        // 공백으로 구분한 AND 검색
+        return q.split(/\s+/).every(function (word) {
+          return text.indexOf(word) !== -1;
+        });
+      });
+
+      // 커스텀(수동 설정)을 맨 앞에 추가
+      var customLi = document.createElement('li');
+      customLi.textContent = '커스텀(수동 설정)';
+      customLi.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        document.getElementById('presetSearch').value = '';
+        closePresetList();
+      });
+      listEl.appendChild(customLi);
+
+      filtered.forEach(function (item) {
+        var li = document.createElement('li');
+        li.innerHTML = '<div>' + item.manufacturer + ' <b>' + item.productNumber + '</b> ' + item.name
+          + '</div><div class="sub">' + item.labelWidth + '×' + item.labelHeight + 'mm</div>';
+        li.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          applyPreset(item);
+        });
+        listEl.appendChild(li);
+      });
+    }
+
+    // 프리셋을 입력란에 반영한다
+    function applyPreset(item) {
+      var fields = [
+        'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+        'labelWidth', 'labelHeight', 'labelGapX', 'labelGapY'
+      ];
+      fields.forEach(function (id) {
+        document.getElementById(id).value = item[id];
+      });
+      document.getElementById('presetSearch').value = presetLabel(item);
+      closePresetList();
+    }
+
+    // 목록을 열고 닫는다
+    function openPresetList() {
+      document.getElementById('presetList').classList.add('open');
+    }
+    function closePresetList() {
+      document.getElementById('presetList').classList.remove('open');
+    }
+
+    // 검색란 이벤트
+    var searchEl = document.getElementById('presetSearch');
+    searchEl.addEventListener('focus', function () {
+      renderPresetList(this.value);
+      openPresetList();
+    });
+    searchEl.addEventListener('input', function () {
+      renderPresetList(this.value);
+      openPresetList();
+    });
+    searchEl.addEventListener('blur', function () {
+      closePresetList();
+    });
+
+    // 폰트 데이터 캐시
+    let fontCache = null;
+
+    // NotoSansKR 폰트를 CDN에서 읽어 들인다
+    async function loadFont() {
+      if (fontCache) return fontCache;
+      const url = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('폰트를 읽어 들이지 못했습니다');
+      const buffer = await response.arrayBuffer();
+      // ArrayBuffer를 Base64 문자열로 변환
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      fontCache = btoa(binary);
+      return fontCache;
+    }
+
+    // 입력값을 숫자로 가져오는 헬퍼
+    function getVal(id) {
+      return parseFloat(document.getElementById(id).value);
+    }
+
+    // PDF 생성
+    async function generatePdf() {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.textContent = '폰트 읽어 들이는 중…';
+
+      try {
+        // 폰트 읽어 들이기
+        const fontBase64 = await loadFont();
+        btn.textContent = 'PDF 생성 중…';
+
+        const { jsPDF } = window.jspdf;
+
+        // 입력값 가져오기
+        const text = document.getElementById('labelText').value;
+        const fontSize = getVal('fontSize');
+        const marginTop = getVal('marginTop');
+        const marginBottom = getVal('marginBottom');
+        const marginLeft = getVal('marginLeft');
+        const marginRight = getVal('marginRight');
+        const labelWidth = getVal('labelWidth');
+        const labelHeight = getVal('labelHeight');
+        const labelGapX = getVal('labelGapX');
+        const labelGapY = getVal('labelGapY');
+        const padding = 2; // 라벨 내 여백 2mm
+
+        // A4 용지 크기
+        const pageWidth = 210;
+        const pageHeight = 297;
+
+        // 인쇄 가능 영역
+        const printableWidth = pageWidth - marginLeft - marginRight;
+        const printableHeight = pageHeight - marginTop - marginBottom;
+
+        // 행 수·열 수 자동 계산
+        const cols = Math.floor((printableWidth + labelGapX) / (labelWidth + labelGapX));
+        const rows = Math.floor((printableHeight + labelGapY) / (labelHeight + labelGapY));
+
+        if (cols <= 0 || rows <= 0) {
+          alert('라벨이 용지에 들어가지 않습니다. 설정을 다시 확인해 주세요.');
+          return;
+        }
+
+        // PDF 만들기
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+        // 폰트 등록
+        doc.addFileToVFS('NotoSansKR.ttf', fontBase64);
+        doc.addFont('NotoSansKR.ttf', 'NotoSansKR', 'normal');
+        doc.setFont('NotoSansKR');
+        doc.setFontSize(fontSize);
+
+        // 텍스트 줄바꿈 처리(개행과 너비 초과 모두 대응)
+        const maxTextWidth = labelWidth - padding * 2;
+        const lines = text ? doc.splitTextToSize(text, maxTextWidth) : [];
+
+        // pt에서 mm로 변환하는 계수
+        const ptToMm = 0.352778;
+
+        // 각 라벨을 그린다
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const x = marginLeft + col * (labelWidth + labelGapX);
+            const y = marginTop + row * (labelHeight + labelGapY);
+
+            // 테두리선을 그린다
+            doc.rect(x, y, labelWidth, labelHeight);
+
+            // 텍스트를 그린다(왼쪽 위 정렬)
+            if (lines.length > 0) {
+              const textX = x + padding;
+              // 베이스라인 위치 = 라벨 위쪽 끝 + 패딩 + 폰트 크기만큼
+              const textY = y + padding + fontSize * ptToMm;
+              doc.text(lines, textX, textY);
+            }
+          }
+        }
+
+        // 새 탭에서 PDF를 표시
+        const pdfBlob = doc.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, '_blank');
+
+      } catch (err) {
+        alert('오류가 발생했습니다: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'PDF 만들기';
+      }
+    }
+
+    // 버튼 이벤트
+    document.getElementById('generateBtn').addEventListener('click', generatePdf);
+  </script>
+</body>
+</html>
